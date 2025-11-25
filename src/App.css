@@ -1,0 +1,224 @@
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 48px 24px 64px;
+}
+
+.hero {
+  background: linear-gradient(135deg, rgba(101, 243, 175, 0.12), rgba(255, 180, 90, 0.12));
+  border: 1px solid var(--card-border);
+  border-radius: 20px;
+  padding: 28px;
+  display: grid;
+  gap: 16px;
+  box-shadow: var(--shadow);
+}
+
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+
+.status {
+  color: var(--muted);
+  margin: 0;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.lede {
+  color: var(--muted);
+  margin-top: 6px;
+  max-width: 620px;
+}
+
+.pill {
+  justify-self: flex-end;
+  align-self: center;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  text-align: right;
+}
+
+.pill .label {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0 0 4px;
+}
+
+.pill strong {
+  font-size: 18px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--card-border);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(4px);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.badge {
+  background: rgba(255, 255, 255, 0.06);
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  border: 1px solid var(--card-border);
+}
+
+.wallet .address {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--card-border);
+  background: rgba(255, 255, 255, 0.02);
+  width: fit-content;
+}
+
+.label {
+  color: var(--muted);
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.balance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.muted {
+  color: var(--muted);
+  margin: 0;
+}
+
+.muted.small {
+  font-size: 13px;
+}
+
+.chain {
+  display: grid;
+  gap: 12px;
+}
+
+.stat {
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--card-border);
+}
+
+.cipher-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.field label {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+input,
+textarea {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text);
+}
+
+textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.actions {
+  display: grid;
+  gap: 10px;
+}
+
+.result {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed var(--card-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.result code {
+  white-space: break-spaces;
+  word-break: break-all;
+  color: var(--accent);
+}
+
+.primary,
+.secondary,
+.ghost {
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-weight: 600;
+  color: #0c0f16;
+}
+
+.primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #0b0f14;
+}
+
+.secondary {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text);
+  border: 1px solid var(--card-border);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--card-border);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.wide {
+  width: 100%;
+}
+
+.span-2 {
+  grid-column: span 2;
+}
+
+@media (max-width: 720px) {
+  .span-2 {
+    grid-column: span 1;
+  }
+}
