@@ -1,9 +1,10 @@
 import { isHexString } from 'ethers';
 
 const encoder = new TextEncoder();
+const decoder = new TextDecoder();
 
 const normalizeHex = (hex: string): string => {
-  if (!isHexString(hex, { allowMissingPrefix: true })) {
+  if (!isHexString(hex, true)) {
     throw new Error('请输入合法的 16 进制字符串');
   }
   const stripped = hex.startsWith('0x') ? hex.slice(2) : hex;
@@ -39,30 +40,28 @@ const mixByte = (byte: number, keyByte: number, index: number): number => {
   return byte ^ keyByte ^ positionSalt;
 };
 
-export const encryptHex = (hex: string, key: string): string => {
-  const normalized = normalizeHex(hex);
-  const inputBytes = hexToBytes(normalized);
-  const keyBytes = buildKey(key);
-  const output = new Uint8Array(inputBytes.length);
-
-  for (let i = 0; i < inputBytes.length; i += 1) {
+const applyCipher = (input: Uint8Array, keyBytes: Uint8Array): Uint8Array => {
+  const output = new Uint8Array(input.length);
+  for (let i = 0; i < input.length; i += 1) {
     const keyByte = keyBytes[i % keyBytes.length];
-    output[i] = mixByte(inputBytes[i], keyByte, i);
+    output[i] = mixByte(input[i], keyByte, i);
   }
-
-  return bytesToHex(output);
+  return output;
 };
 
-export const decryptHex = (cipherHex: string, key: string): string => {
+export const encryptTextToHex = (text: string, key: string): string => {
+  if (!text) {
+    throw new Error('待加密文本不能为空');
+  }
+  const inputBytes = encoder.encode(text);
+  const keyBytes = buildKey(key);
+  return bytesToHex(applyCipher(inputBytes, keyBytes));
+};
+
+export const decryptHexToText = (cipherHex: string, key: string): string => {
   const normalized = normalizeHex(cipherHex);
   const inputBytes = hexToBytes(normalized);
   const keyBytes = buildKey(key);
-  const output = new Uint8Array(inputBytes.length);
-
-  for (let i = 0; i < inputBytes.length; i += 1) {
-    const keyByte = keyBytes[i % keyBytes.length];
-    output[i] = mixByte(inputBytes[i], keyByte, i);
-  }
-
-  return bytesToHex(output);
+  const plainBytes = applyCipher(inputBytes, keyBytes);
+  return decoder.decode(plainBytes);
 };
