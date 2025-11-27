@@ -1,54 +1,46 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BrowserProvider, ZeroAddress, formatEther, getAddress, parseEther } from 'ethers';
+import { formatEther, getAddress, parseEther, zeroAddress } from 'viem';
+import {
+  useAccount,
+  useBalance,
+  useBlockNumber,
+  useChainId,
+  useConnect,
+  useDisconnect,
+  usePublicClient,
+  useSendTransaction,
+  useSwitchChain,
+  useWaitForTransactionReceipt,
+} from 'wagmi';
+import { mainnet, sepolia } from 'wagmi/chains';
 import { decryptHexToText, encryptTextToHex } from './lib/hexCipher';
 import './App.css';
 
 type Nullable<T> = T | null;
 
+const CHAINS = [sepolia, mainnet];
 const formatAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-const SUPPORTED_NETWORKS = [
-  {
-    chainId: 11155111,
-    hex: '0xaa36a7',
-    name: 'Sepolia',
-    rpcUrls: ['https://rpc.sepolia.org'],
-    blockExplorerUrls: ['https://sepolia.etherscan.io'],
-    nativeCurrency: { name: 'SepoliaETH', symbol: 'ETH', decimals: 18 },
-  },
-  {
-    chainId: 1,
-    hex: '0x1',
-    name: 'Ethereum Mainnet',
-    rpcUrls: ['https://cloudflare-eth.com'],
-    blockExplorerUrls: ['https://etherscan.io'],
-    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-  },
-];
 
 function App() {
-  const [provider, setProvider] = useState<Nullable<BrowserProvider>>(null);
-  const [address, setAddress] = useState('');
-  const [balance, setBalance] = useState<Nullable<string>>(null);
-  const [chainId, setChainId] = useState<Nullable<number>>(null);
-  const [latestBlock, setLatestBlock] = useState<Nullable<number>>(null);
+  const chainId = useChainId();
+  const { address, isConnected } = useAccount();
+  const { connect, connectors, isPending: isConnecting } = useConnect();
+  const { disconnect } = useDisconnect();
+  const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
+  const { sendTransactionAsync, isPending: isSendingTx } = useSendTransaction();
+
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [isReading, setIsReading] = useState(false);
-  const [isSwitching, setIsSwitching] = useState(false);
-  const [isSending, setIsSending] = useState(false);
-  const [isFetchingTx, setIsFetchingTx] = useState(false);
-
   const [textToEncrypt, setTextToEncrypt] = useState('Hello, Sepolia!');
   const [cipherKey, setCipherKey] = useState('sepolia-demo-key');
   const [encryptedHex, setEncryptedHex] = useState('');
   const [hexToDecrypt, setHexToDecrypt] = useState('');
   const [decryptedText, setDecryptedText] = useState('');
-  const [targetChain, setTargetChain] = useState(11155111);
-  const [targetAddress, setTargetAddress] = useState(ZeroAddress);
+  const [targetChain, setTargetChain] = useState<number>(sepolia.id);
+  const [targetAddress, setTargetAddress] = useState(zeroAddress);
   const [transferMessage, setTransferMessage] = useState('Encrypted hello on-chain');
   const [transferValue, setTransferValue] = useState('0');
-  const [txHash, setTxHash] = useState('');
+  const [txHash, setTxHash] = useState<Nullable<`0x${string}`>>(null);
   const [lookupHash, setLookupHash] = useState('');
   const [txInfo, setTxInfo] = useState<Nullable<{
     hash: string;
@@ -60,213 +52,151 @@ function App() {
     status?: number | null;
   }>>(null);
   const [txDecrypted, setTxDecrypted] = useState('');
+  const [isFetchingTx, setIsFetchingTx] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+
+  const publicClient = usePublicClient({ chainId: targetChain });
+
+  const {
+    data: balanceData,
+    refetch: refetchBalance,
+    isFetching: isBalanceFetching,
+  } = useBalance({
+    address,
+    chainId,
+    query: { enabled: Boolean(address) },
+  });
+
+  const {
+    data: blockNumber,
+    refetch: refetchBlock,
+    isFetching: isReading,
+  } = useBlockNumber({
+    chainId,
+    query: { enabled: Boolean(chainId), refetchOnWindowFocus: false },
+  });
+
+  const [pendingHash, setPendingHash] = useState<Nullable<`0x${string}`>>(null);
+  const { data: receipt } = useWaitForTransactionReceipt({
+    chainId: targetChain,
+    hash: pendingHash ?? undefined,
+  });
 
   useEffect(() => {
-    if (!window.ethereum) {
-      setStatus('未检测到 MetaMask，请先安装或启用浏览器钱包。');
-      return;
+    if (chainId) {
+      setTargetChain(chainId);
     }
-    const freshProvider = new BrowserProvider(window.ethereum, 'any');
-    setProvider(freshProvider);
-    setStatus('钱包已就绪，点击连接开始。');
-  }, []);
+  }, [chainId]);
 
   useEffect(() => {
-    if (!provider) return;
-    const syncConnection = async () => {
-      try {
-        const accounts = await provider.listAccounts();
-        if (accounts.length > 0) {
-          const account = accounts[0];
-          const accountAddress = typeof account === 'string' ? account : account.address;
-          setAddress(accountAddress);
-          setStatus('检测到已连接的钱包');
-          await Promise.all([refreshBalance(accountAddress, provider), readChainData(provider)]);
-        } else {
-          setStatus('钱包已就绪，点击连接开始。');
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '检测钱包状态失败');
-      }
-    };
-    void syncConnection();
-  }, [provider]);
-
-  useEffect(() => {
-    if (!window.ethereum?.on) {
-      return;
+    if (!receipt) return;
+    const statusLabel = receipt.status === 'success' ? '已上链' : '链上失败';
+    setStatus(`${statusLabel}，区块 ${receipt.blockNumber}`);
+    if (receipt.status !== 'success') {
+      setError('交易在链上被回滚');
+    } else {
+      void refetchBalance();
     }
-    const handleAccountsChanged = (accounts: string[]) => {
-      if (accounts.length === 0) {
-        setAddress('');
-        setBalance(null);
-        return;
-      }
-      setAddress(accounts[0]);
-      refreshBalance(accounts[0]);
-    };
+  }, [receipt, refetchBalance]);
 
-    const handleChainChanged = (hexChainId: string) => {
-      const nextId = parseInt(hexChainId, 16);
-      setChainId(nextId);
-      setTargetChain(nextId);
-      setLatestBlock(null);
-      setTxInfo(null);
-      setTxDecrypted('');
-      setTxHash('');
-      const freshProvider = new BrowserProvider(window.ethereum, 'any');
-      setProvider(freshProvider);
-      void refreshBalance(address, freshProvider);
-      void readChainData(freshProvider);
-    };
+  const latestBlock = blockNumber ? Number(blockNumber) : null;
+  const balance = balanceData ? balanceData.formatted : null;
 
-    window.ethereum.on('accountsChanged', handleAccountsChanged);
-    window.ethereum.on('chainChanged', handleChainChanged);
-    return () => {
-      window.ethereum?.removeListener?.('accountsChanged', handleAccountsChanged);
-      window.ethereum?.removeListener?.('chainChanged', handleChainChanged);
-    };
-  }, [provider]);
+  const chainLabel = useMemo(() => {
+    if (!chainId) return '未连接';
+    const target = CHAINS.find((n) => n.id === chainId);
+    return target ? target.name : `链 ID: ${chainId}`;
+  }, [chainId]);
 
-  const connectWallet = async () => {
+  const handleConnect = async () => {
     setError('');
-    if (!provider) {
-      setStatus('需要 MetaMask 或兼容钱包。');
+    const injectedConnector = connectors.find((c) => c.id === 'injected') ?? connectors[0];
+    if (!injectedConnector) {
+      setStatus('未检测到浏览器钱包，请安装或开启 MetaMask');
       return;
     }
-    setIsConnecting(true);
     try {
-      const accounts = await provider.send('eth_requestAccounts', []);
-      if (!accounts || accounts.length === 0) {
-        throw new Error('未能获取钱包地址');
-      }
-      const account = accounts[0];
-      setAddress(account);
+      setStatus('请求连接中...');
+      await connect({ connector: injectedConnector });
       setStatus('钱包已连接');
-      await Promise.all([refreshBalance(account), readChainData()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : '连接钱包失败');
-    } finally {
-      setIsConnecting(false);
     }
   };
 
-  const refreshBalance = async (
-    targetAddress = address,
-    customProvider: Nullable<BrowserProvider> = provider,
-  ) => {
-    if (!customProvider || !targetAddress) {
-      return;
-    }
+  const readChainData = async () => {
     setError('');
     try {
-      const rawBalance = await customProvider.getBalance(targetAddress);
-      setBalance(formatEther(rawBalance));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '读取余额失败');
-    }
-  };
-
-  const readChainData = async (customProvider: Nullable<BrowserProvider> = provider) => {
-    if (!customProvider) {
-      return;
-    }
-    setIsReading(true);
-    setError('');
-    try {
-      const [blockNumber, network] = await Promise.all([
-        customProvider.getBlockNumber(),
-        customProvider.getNetwork(),
-      ]);
-      setLatestBlock(Number(blockNumber));
-      setChainId(Number(network.chainId));
-      setTargetChain(Number(network.chainId));
+      await Promise.all([refetchBlock(), refetchBalance()]);
+      setStatus('链上数据已刷新');
     } catch (err) {
       setError(err instanceof Error ? err.message : '读取链上数据失败');
-    } finally {
-      setIsReading(false);
     }
   };
 
   const handleSwitchNetwork = async () => {
-    if (!provider) {
-      setStatus('请先连接钱包');
-      return;
-    }
+    if (!switchChainAsync) return;
     setError('');
-    setIsSwitching(true);
     try {
-      const target = SUPPORTED_NETWORKS.find((n) => n.chainId === targetChain);
-      if (!target) {
-        throw new Error('不支持的网络');
-      }
-      await provider.send('wallet_switchEthereumChain', [{ chainId: target.hex }]);
-      setStatus(`已切换到 ${target.name}`);
+      await switchChainAsync({ chainId: targetChain });
+      setStatus('已请求切换网络');
       setTxInfo(null);
       setTxDecrypted('');
-      setTxHash('');
-      const freshProvider = new BrowserProvider(window.ethereum, 'any');
-      setProvider(freshProvider);
-      await Promise.all([readChainData(freshProvider), refreshBalance(address, freshProvider)]);
-    } catch (err: unknown) {
-      const errorCode = (err as { code?: number }).code;
-      if (errorCode === 4902) {
-        try {
-          const target = SUPPORTED_NETWORKS.find((n) => n.chainId === targetChain);
-          if (!target) throw new Error('不支持的网络');
-          await provider.send('wallet_addEthereumChain', [target]);
-          setStatus(`已添加并切换到 ${target.name}`);
-          await readChainData();
-        } catch (innerErr) {
-          setError(innerErr instanceof Error ? innerErr.message : '添加网络失败');
-        }
-      } else {
-        setError(err instanceof Error ? err.message : '切换网络失败');
-      }
-    } finally {
-      setIsSwitching(false);
+      setTxHash(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '切换网络失败');
     }
   };
 
   const handleSendEncrypted = async () => {
-    if (!provider) {
+    if (!address) {
       setStatus('请先连接钱包');
       return;
     }
+    if (!publicClient) {
+      setError('缺少可用的公链客户端');
+      return;
+    }
     setError('');
-    setTxHash('');
+    setTxHash(null);
+    setTxInfo(null);
+    setTxDecrypted('');
     setIsSending(true);
+    setPendingHash(null);
     try {
-      const to = getAddress(targetAddress.trim());
-      const signer = await provider.getSigner();
-      const data = encryptTextToHex(transferMessage, cipherKey);
-      const value = transferValue.trim() ? parseEther(transferValue) : 0n;
-      const txRequest = {
+      const to = getAddress((targetAddress || zeroAddress).trim());
+      const data = encryptTextToHex(transferMessage, cipherKey) as `0x${string}`;
+      const value = transferValue.trim() ? parseEther(transferValue as `${number}`) : 0n;
+
+      let gas: bigint | undefined;
+      try {
+        const estimated = await publicClient.estimateGas({
+          account: address,
+          to,
+          value,
+          data,
+        });
+        gas = (estimated * 12n) / 10n;
+        setStatus(`已估算 Gas: ${gas.toString()}`);
+      } catch {
+        gas = undefined;
+        setStatus('Gas 估算失败，将使用钱包默认值');
+      }
+
+      const hash = await sendTransactionAsync({
         to,
         value,
         data,
-      };
+        gas,
+        chainId: targetChain,
+      });
 
-      let gasLimit: bigint | undefined;
-      try {
-        const estimated = await provider.estimateGas(txRequest);
-        gasLimit = (estimated * 12n) / 10n; // add 20% buffer
-        setStatus(`已估算 Gas: ${gasLimit.toString()}`);
-      } catch {
-        gasLimit = 80000n;
-        setStatus('Gas 估算失败，使用默认 80000');
-      }
-
-      const tx = await signer.sendTransaction({ ...txRequest, gasLimit });
-
+      setTxHash(hash);
+      setPendingHash(hash);
       setStatus('交易已发送，等待确认...');
-      const receipt = await tx.wait();
-      setTxHash(receipt.hash);
-      setStatus(`已上链，区块 ${receipt.blockNumber}`);
-      await refreshBalance();
     } catch (err) {
-      const errorCode = (err as { code?: number | string }).code;
-      if (errorCode === 4001 || errorCode === 'ACTION_REJECTED') {
+      const code = (err as { code?: number | string }).code;
+      if (code === 4001 || code === 'ACTION_REJECTED') {
         setStatus('用户已取消交易签名');
         setError('');
       } else {
@@ -278,12 +208,12 @@ function App() {
   };
 
   const handleFetchTx = async () => {
-    if (!provider) {
+    if (!publicClient) {
       setStatus('请先连接钱包');
       return;
     }
-    const hash = lookupHash.trim() || txHash;
-    if (!hash) {
+    const hashInput = (lookupHash.trim() || txHash) as `0x${string}` | null;
+    if (!hashInput) {
       setError('请输入交易哈希');
       return;
     }
@@ -293,19 +223,19 @@ function App() {
     setTxInfo(null);
     setTxDecrypted('');
     try {
-      const tx = await provider.getTransaction(hash);
+      const tx = await publicClient.getTransaction({ hash: hashInput });
       if (!tx) {
         throw new Error('未找到交易');
       }
-      const receipt = await provider.getTransactionReceipt(hash);
-      const blockNumber = receipt?.blockNumber ?? tx.blockNumber ?? null;
-      const statusCode = receipt?.status ?? null;
+      const receiptData = await publicClient.getTransactionReceipt({ hash: hashInput }).catch(() => null);
+      const blockNumber = receiptData?.blockNumber ?? tx.blockNumber ?? null;
+      const statusCode = receiptData?.status ? (receiptData.status === 'success' ? 1 : 0) : null;
+      const data = (tx.input ?? tx.data ?? '0x') as string;
       const valueEth = formatEther(tx.value);
-      const data = tx.data || '0x';
       setTxInfo({
         hash: tx.hash,
         from: tx.from,
-        to: tx.to,
+        to: tx.to ?? null,
         valueEth,
         data,
         blockNumber,
@@ -350,32 +280,32 @@ function App() {
     }
   };
 
-  const chainLabel = useMemo(() => {
-    if (!chainId) return '未连接';
-    const target = SUPPORTED_NETWORKS.find((n) => n.chainId === chainId);
-    return target ? target.name : `链 ID: ${chainId}`;
-  }, [chainId]);
+  const latestStatus = error || status || '准备就绪';
+  const isSendingOrWaiting = isSending || isSendingTx;
 
   return (
     <div className="page">
       <header className="hero">
         <div>
-          <p className="eyebrow">Sepolia · ethers · MetaMask</p>
+          <p className="eyebrow">Sepolia · wagmi · MetaMask</p>
           <h1>On-chain Playground</h1>
           <p className="lede">
-            连接钱包、读取余额与区块高度，并试试自定义的 16 进制加解密。
+            使用 wagmi 连接钱包、读取余额与区块高度，并试试自定义的 16 进制加解密。
           </p>
           <div className="hero-actions">
-            <button className="primary" onClick={connectWallet} disabled={isConnecting}>
-              {isConnecting ? '连接中...' : address ? '重新连接' : '连接 MetaMask'}
+            <button className="primary" onClick={handleConnect} disabled={isConnecting || isConnected}>
+              {isConnecting ? '连接中...' : isConnected ? '已连接' : '连接 MetaMask (wagmi)'}
             </button>
-            <button className="ghost" onClick={() => readChainData()} disabled={!provider || isReading}>
+            <button className="ghost" onClick={() => readChainData()} disabled={!isConnected || isReading}>
               {isReading ? '读取中...' : '刷新链上数据'}
             </button>
+            {isConnected && (
+              <button className="secondary" onClick={() => disconnect()}>
+                断开
+              </button>
+            )}
           </div>
-          <p className="status">
-            {error || status || '准备就绪'}
-          </p>
+          <p className="status">{latestStatus}</p>
         </div>
         <div className="pill">
           <span className="label">当前网络</span>
@@ -388,24 +318,24 @@ function App() {
           <div className="card-header">
             <div>
               <p className="eyebrow">钱包</p>
-              <h2>MetaMask 连接</h2>
+              <h2>wagmi 连接</h2>
             </div>
-            <span className="badge">{address ? '已连接' : '未连接'}</span>
+            <span className="badge">{isConnected ? '已连接' : '未连接'}</span>
           </div>
           <div className="wallet">
-            {address ? (
+            {isConnected && address ? (
               <>
                 <p className="label">地址</p>
                 <div className="address">{formatAddress(address)}</div>
-            <div className="balance-row">
-              <div>
-                <p className="label">余额 (ETH)</p>
-                <h3>{balance ?? '...'}</h3>
-              </div>
-              <button className="secondary" onClick={() => refreshBalance()}>
-                刷新余额
-              </button>
-            </div>
+                <div className="balance-row">
+                  <div>
+                    <p className="label">余额 (ETH)</p>
+                    <h3>{isBalanceFetching ? '...' : balance ?? '—'}</h3>
+                  </div>
+                  <button className="secondary" onClick={() => refetchBalance()}>
+                    刷新余额
+                  </button>
+                </div>
               </>
             ) : (
               <p className="muted">点击“连接 MetaMask”获取钱包信息。</p>
@@ -431,14 +361,12 @@ function App() {
             </div>
             <button
               className="secondary wide"
-              onClick={() => readChainData()}
-              disabled={!provider || isReading}
+              onClick={() => refetchBlock()}
+              disabled={!isConnected || isReading}
             >
               {isReading ? '读取中...' : '读取区块号'}
             </button>
-            <p className="muted small">
-              使用 ethers 的 BrowserProvider 直接从 MetaMask 读取链上数据。
-            </p>
+            <p className="muted small">通过 wagmi 的 useBlockNumber 与 useBalance 读取链上数据。</p>
             <div className="field">
               <label htmlFor="network">切换网络</label>
               <select
@@ -446,9 +374,9 @@ function App() {
                 value={targetChain}
                 onChange={(e) => setTargetChain(Number(e.target.value))}
               >
-                {SUPPORTED_NETWORKS.map((net) => (
-                  <option key={net.chainId} value={net.chainId}>
-                    {net.name} ({net.chainId})
+                {CHAINS.map((net) => (
+                  <option key={net.id} value={net.id}>
+                    {net.name} ({net.id})
                   </option>
                 ))}
               </select>
@@ -456,11 +384,11 @@ function App() {
             <button
               className="primary wide"
               onClick={handleSwitchNetwork}
-              disabled={!provider || isSwitching}
+              disabled={!isConnected || isSwitching}
             >
-              {isSwitching ? '切换中...' : '切换/添加网络'}
+              {isSwitching ? '切换中...' : '切换网络'}
             </button>
-            <p className="muted small">MetaMask 会弹出确认，支持主网和 Sepolia。</p>
+            <p className="muted small">wagmi 会调用钱包完成链切换/添加。</p>
           </div>
         </section>
 
@@ -515,9 +443,9 @@ function App() {
             <button
               className="primary wide"
               onClick={handleSendEncrypted}
-              disabled={!provider || isSending}
+              disabled={!isConnected || isSendingOrWaiting}
             >
-              {isSending ? '发送中...' : '加密并发送交易'}
+              {isSendingOrWaiting ? '发送中...' : '加密并发送交易 (wagmi)'}
             </button>
             <p className="muted small">
               交易会把加密文本放入 data 字段，收款地址由上方输入框决定，需消耗 Gas。
@@ -550,7 +478,7 @@ function App() {
             <button
               className="primary wide"
               onClick={handleFetchTx}
-              disabled={!provider || isFetchingTx}
+              disabled={!isConnected || isFetchingTx}
             >
               {isFetchingTx ? '读取中...' : '查询交易'}
             </button>
