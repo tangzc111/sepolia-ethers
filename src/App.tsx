@@ -37,7 +37,7 @@ function App() {
   const [hexToDecrypt, setHexToDecrypt] = useState('');
   const [decryptedText, setDecryptedText] = useState('');
   const [targetChain, setTargetChain] = useState<number>(sepolia.id);
-  const [targetAddress, setTargetAddress] = useState(zeroAddress);
+  const [targetAddress, setTargetAddress] = useState<string>(zeroAddress);
   const [transferMessage, setTransferMessage] = useState('Encrypted hello on-chain');
   const [transferValue, setTransferValue] = useState('0');
   const [txHash, setTxHash] = useState<Nullable<`0x${string}`>>(null);
@@ -230,7 +230,7 @@ function App() {
       const receiptData = await publicClient.getTransactionReceipt({ hash: hashInput }).catch(() => null);
       const blockNumber = receiptData?.blockNumber ?? tx.blockNumber ?? null;
       const statusCode = receiptData?.status ? (receiptData.status === 'success' ? 1 : 0) : null;
-      const data = (tx.input ?? tx.data ?? '0x') as string;
+      const data = tx.input ?? '0x';
       const valueEth = formatEther(tx.value);
       setTxInfo({
         hash: tx.hash,
