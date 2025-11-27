@@ -1,17 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BrowserProvider, ZeroAddress, formatEther, getAddress, parseEther } from 'ethers';
+import {
+  BrowserProvider,
+  JsonRpcProvider,
+  ZeroAddress,
+  formatEther,
+  getAddress,
+  parseEther,
+} from 'ethers';
 import { decryptHexToText, encryptTextToHex } from './lib/hexCipher';
 import './App.css';
 
 type Nullable<T> = T | null;
 
 const formatAddress = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+const INFURA_RPC_URL = 'https://sepolia.infura.io/v3/986a1a52c6b74ece8e5205273d3275ec';
 const SUPPORTED_NETWORKS = [
   {
     chainId: 11155111,
     hex: '0xaa36a7',
     name: 'Sepolia',
-    rpcUrls: ['https://rpc.sepolia.org'],
+    rpcUrls: ['https://rpc.sepolia.org', INFURA_RPC_URL],
     blockExplorerUrls: ['https://sepolia.etherscan.io'],
     nativeCurrency: { name: 'SepoliaETH', symbol: 'ETH', decimals: 18 },
   },
@@ -27,10 +35,15 @@ const SUPPORTED_NETWORKS = [
 
 function App() {
   const [provider, setProvider] = useState<Nullable<BrowserProvider>>(null);
+  const infuraProvider = useMemo(() => new JsonRpcProvider(INFURA_RPC_URL), []);
   const [address, setAddress] = useState('');
   const [balance, setBalance] = useState<Nullable<string>>(null);
   const [chainId, setChainId] = useState<Nullable<number>>(null);
   const [latestBlock, setLatestBlock] = useState<Nullable<number>>(null);
+  const [infuraBlock, setInfuraBlock] = useState<Nullable<number>>(null);
+  const [infuraTarget, setInfuraTarget] = useState(ZeroAddress);
+  const [infuraBalance, setInfuraBalance] = useState<Nullable<string>>(null);
+  const [isInfuraReading, setIsInfuraReading] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
@@ -188,6 +201,25 @@ function App() {
     }
   };
 
+  const readInfuraData = async () => {
+    setError('');
+    setIsInfuraReading(true);
+    try {
+      const checksumAddress = getAddress(infuraTarget.trim());
+      const [blockNumber, balanceWei] = await Promise.all([
+        infuraProvider.getBlockNumber(),
+        infuraProvider.getBalance(checksumAddress),
+      ]);
+      setInfuraBlock(Number(blockNumber));
+      setInfuraBalance(formatEther(balanceWei));
+      setStatus('已通过 Infura RPC 读取数据');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '通过 Infura 读取失败');
+    } finally {
+      setIsInfuraReading(false);
+    }
+  };
+
   const handleSwitchNetwork = async () => {
     if (!provider) {
       setStatus('请先连接钱包');
@@ -278,10 +310,6 @@ function App() {
   };
 
   const handleFetchTx = async () => {
-    if (!provider) {
-      setStatus('请先连接钱包');
-      return;
-    }
     const hash = lookupHash.trim() || txHash;
     if (!hash) {
       setError('请输入交易哈希');
@@ -293,11 +321,11 @@ function App() {
     setTxInfo(null);
     setTxDecrypted('');
     try {
-      const tx = await provider.getTransaction(hash);
+      const tx = await infuraProvider.getTransaction(hash);
       if (!tx) {
         throw new Error('未找到交易');
       }
-      const receipt = await provider.getTransactionReceipt(hash);
+      const receipt = await infuraProvider.getTransactionReceipt(hash);
       const blockNumber = receipt?.blockNumber ?? tx.blockNumber ?? null;
       const statusCode = receipt?.status ?? null;
       const valueEth = formatEther(tx.value);
@@ -319,7 +347,7 @@ function App() {
           setTxDecrypted('无法用当前密钥解密');
         }
       }
-      setStatus('交易数据已获取');
+      setStatus('已通过 Infura 读取交易数据');
     } catch (err) {
       setError(err instanceof Error ? err.message : '查询交易失败');
     } finally {
@@ -384,7 +412,7 @@ function App() {
       </header>
 
       <main className="grid">
-        <section className="card">
+        {/* <section className="card">
           <div className="card-header">
             <div>
               <p className="eyebrow">钱包</p>
@@ -411,9 +439,9 @@ function App() {
               <p className="muted">点击“连接 MetaMask”获取钱包信息。</p>
             )}
           </div>
-        </section>
+        </section> */}
 
-        <section className="card">
+        {/* <section className="card">
           <div className="card-header">
             <div>
               <p className="eyebrow">链上读取</p>
@@ -462,9 +490,44 @@ function App() {
             </button>
             <p className="muted small">MetaMask 会弹出确认，支持主网和 Sepolia。</p>
           </div>
-        </section>
+        </section> */}
 
         <section className="card">
+          <div className="card-header">
+            <div>
+              <p className="eyebrow">Infura</p>
+              <h2>无需钱包直接读取</h2>
+            </div>
+            <span className="badge">RPC</span>
+          </div>
+          <div className="cipher-grid">
+            <div className="stat">
+              <p className="label">最新区块（Infura）</p>
+              <strong>{infuraBlock ?? '未读取'}</strong>
+            </div>
+            <div className="field">
+              <label htmlFor="infuraAddress">任意地址（Sepolia）</label>
+              <input
+                id="infuraAddress"
+                value={infuraTarget}
+                onChange={(e) => setInfuraTarget(e.target.value)}
+                placeholder="输入要查询余额的地址"
+              />
+            </div>
+            <div className="stat">
+              <p className="label">余额 (ETH)</p>
+              <strong>{infuraBalance ?? '—'}</strong>
+            </div>
+            <button className="secondary wide" onClick={readInfuraData} disabled={isInfuraReading}>
+              {isInfuraReading ? '读取中...' : '使用 Infura 读取'}
+            </button>
+            <p className="muted small">
+              通过 {INFURA_RPC_URL} 发起 JsonRpc 请求，直接读取区块高度与余额。
+            </p>
+          </div>
+        </section>
+
+        {/* <section className="card">
           <div className="card-header">
             <div>
               <p className="eyebrow">转账</p>
@@ -527,7 +590,7 @@ function App() {
               <code>{txHash || '—'}</code>
             </div>
           </div>
-        </section>
+        </section> */}
 
         <section className="card">
           <div className="card-header">
@@ -582,7 +645,7 @@ function App() {
           </div>
         </section>
 
-        <section className="card span-2">
+        {/* <section className="card span-2">
           <div className="card-header">
             <div>
               <p className="eyebrow">16 进制</p>
@@ -640,7 +703,7 @@ function App() {
               </div>
             </div>
           </div>
-        </section>
+        </section> */}
       </main>
     </div>
   );

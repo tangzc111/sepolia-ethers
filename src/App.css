@@ -71,9 +71,15 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--card-border);
   border-radius: 18px;
-  padding: 18px;
+  padding: 20px;
   box-shadow: var(--shadow);
   backdrop-filter: blur(4px);
+  overflow: hidden;
+}
+
+.card p,
+.card code {
+  overflow-wrap: anywhere;
 }
 
 .card-header {
@@ -124,7 +130,14 @@
 
 .chain {
   display: grid;
-  gap: 12px;
+  gap: 14px;
+  width: 100%;
+}
+
+.chain > * {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
 }
 
 .stat {
@@ -154,6 +167,8 @@ textarea {
   border: 1px solid var(--card-border);
   background: rgba(255, 255, 255, 0.02);
   color: var(--text);
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
 }
 
 textarea {
