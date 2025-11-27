@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       ethers:
-        specifier: ^6.13.2
+        specifier: ^6.15.0
         version: 6.15.0
       react:
         specifier: ^18.3.1
