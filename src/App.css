@@ -218,6 +218,86 @@ button:disabled {
   grid-column: span 2;
 }
 
+.subgraph {
+  display: grid;
+  gap: 12px;
+}
+
+.inline-code {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 3px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+}
+
+.log-list {
+  display: grid;
+  gap: 10px;
+}
+
+.log {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.02);
+  display: grid;
+  gap: 8px;
+}
+
+.log-main strong {
+  font-size: 16px;
+}
+
+.log-meta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.error {
+  color: #ff7a7a;
+  margin: 0;
+}
+
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.log-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.log-table th,
+.log-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--card-border);
+  text-align: left;
+}
+
+.log-table th {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.log-table tr:last-child td {
+  border-bottom: none;
+}
+
+.message-cell {
+  max-width: 240px;
+  word-break: break-word;
+}
+
 @media (max-width: 720px) {
   .span-2 {
     grid-column: span 1;
