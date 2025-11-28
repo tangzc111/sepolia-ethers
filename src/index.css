@@ -2,13 +2,13 @@
 
 :root {
   color-scheme: light;
-  --bg: #0d1117;
-  --card: rgba(255, 255, 255, 0.04);
-  --card-border: rgba(255, 255, 255, 0.08);
-  --accent: #65f3af;
-  --accent-strong: #26d97e;
-  --text: #e8edf5;
-  --muted: #9aa4b5;
+  --bg: #22040a;
+  --card: rgba(255, 255, 255, 0.06);
+  --card-border: rgba(255, 255, 255, 0.12);
+  --accent: #ffb347;
+  --accent-strong: #ff7b7b;
+  --text: #fff6f0;
+  --muted: #f2c9c1;
   --shadow: 0 20px 70px rgba(0, 0, 0, 0.35);
 }
 
@@ -21,9 +21,9 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: radial-gradient(circle at 20% 20%, rgba(101, 243, 175, 0.12), transparent 35%),
-    radial-gradient(circle at 80% 10%, rgba(255, 180, 90, 0.12), transparent 40%),
-    linear-gradient(135deg, #0b0f14 0%, #0f1724 50%, #0b1020 100%);
+  background: radial-gradient(circle at 20% 20%, rgba(255, 170, 120, 0.15), transparent 35%),
+    radial-gradient(circle at 80% 10%, rgba(255, 90, 90, 0.12), transparent 40%),
+    linear-gradient(135deg, #2a070f 0%, #3a0c1a 50%, #2f0a13 100%);
   color: var(--text);
   font-family: 'Space Grotesk', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
