@@ -29,6 +29,14 @@ pnpm build
 pnpm preview
 ```
 
+## Cloudflare Pages 部署
+
+- 构建命令：`pnpm build`
+- 输出目录：`dist`
+- SPA 路由：已在 `public/_redirects` 添加 `/* /index.html 200`
+- 可选本地预览：`pnpm preview`
+- `wrangler.toml` 已设置 `pages_build_output_dir = "dist"`
+
 ## 目录
 
 - `src/App.tsx`：页面逻辑与 UI。
